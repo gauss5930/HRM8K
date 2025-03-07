@@ -5,4 +5,4 @@ pandas
 antlr4-python3-runtime
 sympy
 latex2sympy2
-math-verify[antlr4_13_2]
+math-verify

@@ -1,5 +1,6 @@
 from prompts import prompts
 from models import litellm_models, load_model
+from litellm import batch_completion
 from transformers import AutoTokenizer
 from vllm import LLM, SamplingParams
 

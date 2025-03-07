@@ -4,7 +4,7 @@
 models=(
     # "Qwen/Qwen2.5-1.5B-Instruct"
     # "Qwen/Qwen2.5-3B-Instruct"
-    "Qwen/Qwen2.5-7B-Instruct"
+    # "Qwen/Qwen2.5-7B-Instruct"
     # "Qwen/Qwen2.5-14B-Instruct"
     # "Qwen/Qwen2.5-32B-Instruct"
     # "Qwen/Qwen2.5-72B-Instruct"
@@ -14,6 +14,7 @@ models=(
     # "meta-llama/Llama-3.1-70B-Instruct"
     # "gpt-4o-mini"
     # "gpt-4o"
+    "Cartinoe5930/PLUG-1.5B-v1"
 )
 
 temp_list=(
@@ -40,10 +41,10 @@ export OPENAI_API_KEY="YOUR_OPENAI_API_KEY"
 
 # Loop through each model and run the Python script
 for temp in "${temp_list[@]}"; do
-    for model_name in "${models[@]}"; do
-      echo "Running evaluation for model: $model_name / categories: $CATEGORIES / prompts: $PROMPT_ID"
-      python src/run_eval.py --cats $CATEGORIES --model_name "$model_name" --prompt_id $PROMPT_ID --eval_method $EVAL_METHOD --score_type $SCORE_TYPE --temperature $temp
-      # Uncomment the next line if you want to clear Hugging Face cache after each run
-      # rm -rf ~/.cache/huggingface
-    done
+  for model_name in "${models[@]}"; do
+    echo "Running evaluation for model: $model_name / categories: $CATEGORIES / prompts: $PROMPT_ID"
+    python src/run_eval.py --cats $CATEGORIES --model_name "$model_name" --eval_method $EVAL_METHOD --score_type $SCORE_TYPE --temperature $temp
+    # Uncomment the next line if you want to clear Hugging Face cache after each run
+    # rm -rf ~/.cache/huggingface
+  done
 done

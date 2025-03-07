@@ -1,11 +1,9 @@
 import os
 import argparse
-from models import load_vllm_model, litellm_models
 from score import scoring_func
 from generate import generate_solution
 from datasets import load_dataset
 import pandas as pd
-from litellm import batch_completion
 from tqdm import tqdm
 import huggingface_hub
 import json
@@ -28,7 +26,7 @@ def main(cats, model_name, prompt_id, eval_method, score_type, temperature, p):
 
     model_path = model_name.replace('/', '_')
     os.makedirs('results', exist_ok=True)
-    os.makedirs(f'results/{model_path}_temp_{temperature.replace('.', '_')}', exist_ok=True)
+    os.makedirs(f"results/{model_path}_temp_{temperature.replace('.', '_')}", exist_ok=True)
     os.makedirs(f"{method}_score_result", exist_ok=True)
     os.makedirs(f"{method}_score_result/{model_path}_temp_{temperature.replace('.', '_')}", exist_ok=True)
 
