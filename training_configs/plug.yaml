@@ -1,4 +1,4 @@
-base_model: deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B
+base_model: Qwen/Qwen2.5-1.5B-Instruct
 model_type: AutoModelForCausalLM
 tokenizer_type: AutoTokenizer
 trust_remote_code: false
@@ -7,30 +7,39 @@ load_in_8bit: false
 load_in_4bit: false
 strict: false
 
-output_dir: ./outputs/out
-chat_template: mr1
-rl: orpo
-orpo_alpha: 0.1
-remove_unused_columns: false
 
-chat_template: tokenizer_default
+
+output_dir: ./outputs/out
+chat_template: qwen_25
 datasets:
-  - path: amphora/mr1-orpo-formatted-v2
-    type: chat_template.argilla
+  - path: train.jsonl
+    type: chat_template
+    # chat_template: tokenizer_default
+    field_messages: messages
+    message_field_role: role
+    message_field_content: content
+    roles:
+      system:
+        - system
+      user:
+        - user
+      assistant:
+        - assistant
 
 dataset_prepared_path: last_run_prepared
 val_set_size: 0.005
+output_dir: ./outputs/out
 eval_sample_packing: False
 
-sequence_len: 16384
+sequence_len: 8192
 sample_packing: False
 pad_to_sequence_len: False
 
-wandb_project: mr1
+wandb_project: hrm8k
 wandb_entity:
-wandb_watch:
-wandb_name:
-wandb_log_model:
+wandb_watch: 
+wandb_name: 
+hub_model_id: 
 
 plugins:
   - axolotl.integrations.liger.LigerPlugin
@@ -41,16 +50,16 @@ liger_fused_linear_cross_entropy: true
 
 gradient_accumulation_steps: 8
 micro_batch_size: 8
-eval_batch_size: 1
-num_epochs: 1
-optimizer: adamw_torch
+eval_batch_size: 4
+num_epochs: 3
+optimizer: paged_adamw_8bit
 lr_scheduler: cosine
 learning_rate: 2e-5
 
 train_on_inputs: false
 group_by_length: false
 bf16: auto
-fp16: 
+fp16:
 tf32: false
 
 gradient_checkpointing: true
@@ -63,16 +72,13 @@ xformers_attention:
 flash_attention: true
 
 warmup_steps: 30
-evals_per_epoch: 3
+evals_per_epoch: 1
 eval_max_new_tokens: 128
 eval_table_size:
-saves_per_epoch: 5
+saves_per_epoch: 1
 debug:
-deepspeed: deepspeed_configs/zero3_bf16.json
+deepspeed: deepspeed_configs/zero1.json
 weight_decay: 0.01
 fsdp:
 fsdp_config:
 special_tokens:
-  bos_token: "<｜begin▁of▁sentence｜>"
-  eos_token: "<｜end▁of▁sentence｜>"
-  pad_token: "<｜end▁of▁sentence｜>"

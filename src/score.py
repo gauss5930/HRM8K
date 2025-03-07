@@ -1,12 +1,12 @@
-from transformers import AutoTokenizer
+from math_verify import parse, verify
+import pandas as pd
+import os
 import re
 from collections import Counter
 from jinja2.exceptions import TemplateError
 from latex2sympy2 import latex2sympy
 from sympy import latex, simplify
 from prompts import prompts
-
-system_message = " "
 
 def check_duplication(input_str, thres=10):
     count = dict(Counter(input_str.split()))
@@ -98,55 +98,34 @@ def parse_ksm_value(question,text,answer):
             return any([answer_in_last_sentence(text, answer), parse_boxed_value(text, answer)])
         except:
             return parse_boxed_content_value(text, answer)
-        
-def generate_queries_local(df, model_name, prompt_id):
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    qrys = []
-    
-    for _,row in df.iterrows():
-        if prompt_id in ["en",'oasst_en', 'e2e', 'e2k']:
-            text = row.original
-        else:
-            text = row.question
 
-        if 'oasst' in prompt_id:
-            qry = prompts[prompt_id].replace("{instruction}",text)
-        else:
-            if prompt_id in ["k2k", "e2k"]:
-                msg = prompts["ko"]
-            elif prompt_id in ["e2e", "k2e"]:
-                msg = prompts["en"]
-            else:
-                msg = prompts[prompt_id]
+def scoring_func(score_type, prompt_id, output_path):
+    file_list = [f for f in os.listdir(output_path) if ".csv" in f]
+    scores = {}
 
-        try:
-            messages = [
-                    {"role": "system", "content": system_message},
-                    {"role": "user", "content": " ".join([text, msg])}
-                ]
-            qry = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+    for st in score_type:
+        scores[st] = {}
+        for file in file_list:
+            k = file.replace(".csv", "")
+            df = pd.read_csv(os.path.join(output_path, file))
+            if st == "original":
+                if k in ["GSM8K", "MATH", "OMNI_MATH"]:
+                    score = sum([1 for _,row in df.iterrows() if any([answer_in_last_sentence(row.solution,row.answer),parse_boxed_value(row.solution,row.answer)])])
+                elif k == "MMMLU":
+                    score = sum([1 for _,row in df.iterrows() if any([parse_mcqa_value(row.question,row.solution,row.answer)])])
+                elif k == "KSM":
+                    if prompt_id in ["en", "oasst_en", "e2e", "e2k"]:
+                        score = sum([1 for _,row in df.iterrows() if parse_ksm_value(row.original,row.solution,row.original_answer)])
+                    else:
+                        score = sum([1 for _,row in df.iterrows() if parse_ksm_value(row.question,row.solution,row.answer)])
+            elif st == "math_verify":
+                if k in ["GSM8K", "MATH", "OMNI_MATH", "MMMLU"]:
+                    score = sum([1 for _,row in df.iterrows() if verify(parse(row.answer), verify(row.solution))])
+                elif k == "KSM":
+                    if prompt_id in ["en", "oasst_en", "e2e", "e2k"]:
+                        score = sum([1 for _,row in df.iterrows() if verify(parse(row.original_answer), parse(row.solution))])
+                    else:
+                        score = sum([1 for _,row in df.iterrows() if verify(parse(row.answer), parse(row.solution))])
+            scores[st][k] = score / len(df) * 100
             
-        except TemplateError as e:
-            if str(e) == 'System role not supported':
-                messages = [
-                    {"role": "user", "content": f"{system_message}" + '\n\n'+ text + msg}
-                ]
-                qry = tokenizer.apply_chat_template(messages, tokenize=False)
-            else:
-                print(f"An error occurred: {e}")
-        qrys.append(qry)
-    return qrys
-
-def generate_queries_litellm(df, model_name, prompt_id):
-    qrys = []
-    for _,row in df.iterrows():
-        if prompt_id == "en":
-            text = row.original
-        else:
-            text = row.question
-        messages =  [
-            {"role": "system","content": system_message + '\n\n' + prompts[prompt_id]},       
-            {"role": "user","content": text}
-        ]
-        qrys.append(messages)
-    return qrys
+    return scores
