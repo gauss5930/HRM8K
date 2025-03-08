@@ -4,7 +4,7 @@ import os
 import re
 from collections import Counter
 from jinja2.exceptions import TemplateError
-from latex2sympy2 import latex2sympy
+from latex2sympy2_extended import latex2sympy
 from sympy import latex, simplify
 from prompts import prompts
 
@@ -119,13 +119,15 @@ def scoring_func(score_type, prompt_id, output_path):
                     else:
                         score = sum([1 for _,row in df.iterrows() if parse_ksm_value(row.question,row.solution,row.answer)])
             elif st == "math_verify":
-                if k in ["GSM8K", "MATH", "OMNI_MATH", "MMMLU"]:
-                    score = sum([1 for _,row in df.iterrows() if verify(parse(row.answer), verify(row.solution))])
+                if k in ["GSM8K", "MATH", "OMNI_MATH"]:
+                    score = sum([1 for _,row in df.iterrows() if verify(parse(str(row.answer)), parse(row.solution))])
+                elif k == "MMMLU":
+                    score = sum([1 for _,row in df.iterrows() if any([parse_mcqa_value(row.question,row.solution,row.answer)])])
                 elif k == "KSM":
                     if prompt_id in ["en", "oasst_en", "e2e", "e2k"]:
-                        score = sum([1 for _,row in df.iterrows() if verify(parse(row.original_answer), parse(row.solution))])
+                        score = sum([1 for _,row in df.iterrows() if verify(parse(str(row.original_answer)), parse(row.solution))])
                     else:
-                        score = sum([1 for _,row in df.iterrows() if verify(parse(row.answer), parse(row.solution))])
+                        score = sum([1 for _,row in df.iterrows() if verify(parse(str(row.answer)), parse(row.solution))])
             scores[st][k] = score / len(df) * 100
             
     return scores

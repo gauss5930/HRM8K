@@ -19,7 +19,6 @@ models=(
 temp_list=(
     0.0
     0.7
-    0.8
 )
 
 # Set the categories
@@ -35,8 +34,8 @@ EVAL_METHOD="normal"
 SCORE_TYPE="original math_verify"
 
 # Optional: Set your tokens (uncomment and set as needed)
-export HF_TOKEN="YOUR_HF_TOKEN"
-export OPENAI_API_KEY="YOUR_OPENAI_API_KEY"
+# export HF_TOKEN="YOUR_HF_TOKEN"
+# export OPENAI_API_KEY="YOUR_OPENAI_API_KEY"
 
 # Loop through each model and run the Python script
 for temp in "${temp_list[@]}"; do
