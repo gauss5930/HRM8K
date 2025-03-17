@@ -52,7 +52,7 @@ def generate_queries(df, model_name, prompt_id):
         question = row.original if prompt_id in ["en",'oasst_en', 'e2e', 'e2k'] else row.question
         msg = prompts[prompt_id].replace("{instruction}", question) if 'oasst' in prompt_id else " ".join([question, query_mapping(prompt_id)])
 
-        if (model_name not in litellm_models) or ("openrouter" in model_name):
+        if model_name not in litellm_models:
             try:
                 if system_message:
                     messages = [{"role": "system", "content": system_message}]
@@ -81,14 +81,14 @@ def generate_queries(df, model_name, prompt_id):
 
 
 def generate_solution(prompt_id, model_name, temperature, p, dfs):
-    if (model_name not in litellm_models) or ("openrouter" in model_name):
+    if model_name not in litellm_models:
         model, params = load_model(model_name, temperature, p)
 
     df_results = {}
     for k, df in tqdm(dfs.items(),total=len(dfs)):
         if prompt_id != "clp":
             prompts = generate_queries(df, model_name, prompt_id)
-            if (model_name not in litellm_models) or ("openrouter" in model_name):
+            if model_name in litellm_models:
                 responses = batch_completion(model=model_name, messages=prompts, temperature=temperature, top_p=p, max_tokens=2048)
                 outputs = [safe_parse(resp) for resp in responses]
             else:
@@ -98,7 +98,7 @@ def generate_solution(prompt_id, model_name, temperature, p, dfs):
 
         else:
             align_prompts = generate_queries_clp(df, model_name)
-            if (model_name not in litellm_models) or ("openrouter" in model_name):
+            if model_name in litellm_models:
                 responses = batch_completion(model=model_name, messages=align_prompts, temperature=temperature, top_p=p, max_tokens=2048)
                 align_outputs = [safe_parse(resp) for resp in responses]
             else:
@@ -107,7 +107,7 @@ def generate_solution(prompt_id, model_name, temperature, p, dfs):
             df["alignment"] = align_outputs
 
             solution_prompts = generate_queries_clp(df, model_name)
-            if (model_name not in litellm_models) or ("openrouter" in model_name):
+            if model_name in litellm_models:
                 responses = batch_completion(model=model_name, messages=solution_prompts, temperature=temperature, top_p=p, max_tokens=2048)
                 solution_outputs = [safe_parse(resp) for resp in responses]
             else:
