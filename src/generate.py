@@ -4,6 +4,7 @@ from litellm import batch_completion
 from transformers import AutoTokenizer
 from vllm import LLM, SamplingParams
 from tqdm.auto import tqdm
+from jinja2.exceptions import TemplateError
 
 def query_mapping(prompt_id):
     if prompt_id in ["k2k", "e2k"]:
@@ -44,10 +45,11 @@ def generate_queries(df, model_name, prompt_id):
 
         if model_name not in litellm_models:
             try:
-                messages = [
-                        {"role": "system", "content": system_message},
-                        {"role": "user", "content": msg}
-                    ]
+                if system_message:
+                    messages = [{"role": "system", "content": system_message}]
+                else:
+                    messages = []
+                messages.append({"role": "user", "content": msg})
                 qry = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
             except TemplateError as e:
                 if str(e) == 'System role not supported':
