@@ -50,7 +50,7 @@ def generate_queries(df, model_name, prompt_id):
     
     for _,row in df.iterrows():
         question = row.original if prompt_id in ["en",'oasst_en', 'e2e', 'e2k'] else row.question
-        msg = prompts[prompt_id].replace("{instruction}", question) if ('oasst' in prompt_id) or ('qaling' in prompt_id) else " ".join([question, query_mapping(prompt_id)])
+        msg = prompts[prompt_id].replace("{instruction}", question) if ('oasst' in prompt_id) or ('qalign' in prompt_id) else " ".join([question, query_mapping(prompt_id)])
 
         if model_name not in litellm_models:
             try:
