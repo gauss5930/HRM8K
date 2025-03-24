@@ -21,7 +21,7 @@ Let's understand the task in <target_lang> step-by-step!""",
 Let's resolve the task you understand above step-by-step!
 Finally, you should format your answer as 'Answer: [num]'.""",
     "plug_system": "Please interpret the instruction in English, and then respond both in English and in Korean.",
-    "qalign_prompt": """Below is an instruction that describes a task. Write a response that appropriately completes the request.
+    "qalign": """Below is an instruction that describes a task. Write a response that appropriately completes the request.
     
     ### Instruction:\n{instruction}
     
