@@ -19,7 +19,7 @@ def eval_method_cls(eval_method, prompt_id):
         return ["plug"]
 
 
-def main(cats, model_name, prompt_id, eval_method, score_type, temperature, p):
+def main(cats, model_name, prompt_id, eval_method, score_type, temperature, p, max_tokens):
     prompt_id = eval_method_cls(eval_method, prompt_id)
 
     # Load datasets
@@ -36,7 +36,7 @@ def main(cats, model_name, prompt_id, eval_method, score_type, temperature, p):
         os.makedirs(f"results/temp_{str(temperature).replace('.', '_')}/{model_path}/{pi}", exist_ok=True)
         print(f"{model_name} - {prompt_id} Evaluation is starting..")
 
-        results = generate_solution(pi, model_name, temperature, p, dfs)
+        results = generate_solution(pi, model_name, temperature, p, max_tokens, dfs)
         for k in results.keys():
             results[k].to_csv(f"results/temp_{str(temperature).replace('.', '_')}/{model_path}/{pi}/{k}.csv", index=False)
             
@@ -61,4 +61,4 @@ if __name__ == "__main__":
     parser.add_argument('--eval_method', type=str, default="normal", help="Evaluation method")
     parser.add_argument('--score_type', nargs="+", default=["original", "math_verify"], help="Scoring type")
     args = parser.parse_args()
-    main(args.cats, args.model_name, args.prompt_id, args.eval_method, args.score_type, args.temperature, args.p)
+    main(args.cats, args.model_name, args.prompt_id, args.eval_method, args.score_type, args.temperature, args.p, args.max_tokens)

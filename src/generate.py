@@ -6,9 +6,15 @@ from vllm import LLM, SamplingParams
 from tqdm.auto import tqdm
 from jinja2.exceptions import TemplateError
 
-def safe_parse(text):
+def safe_parse_litellm(text):
     try:
         return text.choices[0].message.content
+    except:
+        return None
+
+def safe_parse_vllm(text):
+    try:
+        return text.outputs[0].text
     except:
         return None
 
@@ -50,16 +56,21 @@ def generate_queries(df, model_name, prompt_id):
     
     for _,row in df.iterrows():
         question = row.original if prompt_id in ["en",'oasst_en', 'e2e', 'e2k'] else row.question
-        msg = prompts[prompt_id].replace("{instruction}", question) if ('oasst' in prompt_id) or ('qalign' in prompt_id) else " ".join([question, query_mapping(prompt_id)])
+        msg = prompts[prompt_id].replace("{instruction}", question) if ('oasst' in prompt_id) or ('qalign' in prompt_id) else " ".join([question, query_mapping(prompt_id)]).strip()
+        if prompt_id in ["k2k", "k2e", "e2k", "e2e"]:
+            msg = "".join([prompts["question_instruction"], msg])
 
         if model_name not in litellm_models:
             try:
-                if system_message:
-                    messages = [{"role": "system", "content": system_message}]
+                if "qalign" in prompt_id:
+                    qry = tokenizer.apply_chat_template(msg, tokenize=False, add_generation_prompt=True)
                 else:
-                    messages = []
-                messages.append({"role": "user", "content": msg})
-                qry = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+                    if system_message:
+                        messages = [{"role": "system", "content": system_message}]
+                    else:
+                        messages = []
+                    messages.append({"role": "user", "content": msg})
+                    qry = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
             except TemplateError as e:
                 if str(e) == 'System role not supported':
                     messages = [
@@ -80,7 +91,7 @@ def generate_queries(df, model_name, prompt_id):
     return qrys
 
 
-def generate_solution(prompt_id, model_name, temperature, p, dfs):
+def generate_solution(prompt_id, model_name, temperature, p, max_tokens, dfs):
     if model_name not in litellm_models:
         model, params = load_model(model_name, temperature, p)
 
@@ -89,30 +100,30 @@ def generate_solution(prompt_id, model_name, temperature, p, dfs):
         if prompt_id != "clp":
             prompts = generate_queries(df, model_name, prompt_id)
             if model_name in litellm_models:
-                responses = batch_completion(model=model_name, messages=prompts, temperature=temperature, top_p=p, max_tokens=2048)
-                outputs = [safe_parse(resp) for resp in responses]
+                responses = batch_completion(model=model_name, messages=prompts, temperature=temperature, top_p=p, max_tokens=max_tokens)
+                outputs = [safe_parse_litellm(resp) for resp in responses]
             else:
                 responses = model.generate(prompts, params)
-                outputs = [output.outputs[0].text for output in responses]
+                outputs = [safe_parse_vllm(output) for output in responses]
             df["solution"] = outputs
 
         else:
             align_prompts = generate_queries_clp(df, model_name)
             if model_name in litellm_models:
-                responses = batch_completion(model=model_name, messages=align_prompts, temperature=temperature, top_p=p, max_tokens=2048)
-                align_outputs = [safe_parse(resp) for resp in responses]
+                responses = batch_completion(model=model_name, messages=align_prompts, temperature=temperature, top_p=p, max_tokens=max_tokens)
+                align_outputs = [safe_parse_litellm(resp) for resp in responses]
             else:
                 responses = model.generate(align_prompts, params)
-                align_outputs = [output.outputs[0].text for output in responses]
+                align_outputs = [safe_parse_vllm(output) for output in responses]
             df["alignment"] = align_outputs
 
             solution_prompts = generate_queries_clp(df, model_name)
             if model_name in litellm_models:
-                responses = batch_completion(model=model_name, messages=solution_prompts, temperature=temperature, top_p=p, max_tokens=2048)
-                solution_outputs = [safe_parse(resp) for resp in responses]
+                responses = batch_completion(model=model_name, messages=solution_prompts, temperature=temperature, top_p=p, max_tokens=max_tokens)
+                solution_outputs = [safe_parse_litellm(resp) for resp in responses]
             else:
                 responses = model.generate(solution_prompts, params)
-                solution_outputs = [output.outputs[0].text for output in responses]
+                solution_outputs = [safe_parse_vllm(output) for output in responses]
             df["solution"] = solution_outputs
             
         df_results[k] = df

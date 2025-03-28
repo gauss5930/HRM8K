@@ -1,6 +1,6 @@
 prompts = {
     "default":"",
-    "default_ko":"",
+    "question_instruction":"Solve the given question.\n\nAfter solving the problem, state your final answer in the following format: \\boxed{N}.\n\n",
     "ko":"Respond in Korean.",
     "en":"Respond in English.",
     "oasst":"### Instruction:\n{instruction}\n\n### Response:\n",

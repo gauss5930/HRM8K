@@ -9,7 +9,7 @@ litellm_models = [
     
 def load_model(model_name, temperature, p, max_tokens=8192):
     try:
-        llm = LLM(model_name, tensor_parallel_size=torch.cuda.device_count(),max_model_len=max_tokens)
+        llm = LLM(model_name, tensor_parallel_size=torch.cuda.device_count(),max_model_len=max_tokens+2048)
     except:
         llm = LLM(model_name, tensor_parallel_size=torch.cuda.device_count())
 
