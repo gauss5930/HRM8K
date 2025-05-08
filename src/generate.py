@@ -31,7 +31,7 @@ def query_mapping(prompt_id):
 def generate_queries_clp(df, model_name):
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     qrys = []
-
+                                                            
     for _,row in df.iterrows():
         msg = [
             {"role": "system", "content": ""},
@@ -46,7 +46,7 @@ def generate_queries_clp(df, model_name):
         
     return qrys
 
-def generate_queries(df, model_name, prompt_id):
+def generate_queries(df, model_name, prompt_id, reasoning):
     try:        
         tokenizer = AutoTokenizer.from_pretrained(model_name)
     except:
@@ -63,20 +63,20 @@ def generate_queries(df, model_name, prompt_id):
         if model_name not in litellm_models:
             try:
                 if "qalign" in prompt_id:
-                    qry = tokenizer.apply_chat_template(msg, tokenize=False, add_generation_prompt=True)
+                    qry = tokenizer.apply_chat_template(msg, tokenize=False, add_generation_prompt=True, enable_thinking=reasoning)
                 else:
                     if system_message:
                         messages = [{"role": "system", "content": system_message}]
                     else:
                         messages = []
                     messages.append({"role": "user", "content": msg})
-                    qry = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+                    qry = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True, enable_thinking=reasoning)
             except TemplateError as e:
                 if str(e) == 'System role not supported':
                     messages = [
                         {"role": "user", "content": system_message + '\n\n'+ msg}
                     ]
-                    qry = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+                    qry = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True, enable_thinking=reasoning)
                 else:
                     print(f"An error occurred: {e}")
         else:
@@ -91,14 +91,14 @@ def generate_queries(df, model_name, prompt_id):
     return qrys
 
 
-def generate_solution(prompt_id, model_name, temperature, p, max_tokens, dfs):
+def generate_solution(prompt_id, model_name, reasoning, temperature, p, max_tokens, dfs):
     if model_name not in litellm_models:
         model, params = load_model(model_name, temperature, p)
 
     df_results = {}
     for k, df in tqdm(dfs.items(),total=len(dfs)):
         if prompt_id != "clp":
-            prompts = generate_queries(df, model_name, prompt_id)
+            prompts = generate_queries(df, model_name, prompt_id, reasoning)
             if model_name in litellm_models:
                 responses = batch_completion(model=model_name, messages=prompts, temperature=temperature, top_p=p, max_tokens=max_tokens)
                 outputs = [safe_parse_litellm(resp) for resp in responses]
