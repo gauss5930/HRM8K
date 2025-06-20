@@ -1,8 +1,15 @@
 from prompts import prompts
-from models import litellm_models, load_model
-from litellm import batch_completion
+from models import load_model
+from litellm import batch_completion, completion
 from tqdm.auto import tqdm
+import litellm
+from openai import OpenAI
+import google.generativeai as genai
 import torch
+import os
+
+
+litellm.drop_params=True
 
 
 def safe_parse_litellm(text):
@@ -19,7 +26,7 @@ def safe_parse_vllm(text):
         return None
 
 
-def generate_queries(df, model_name, tokenizer, prompt_id, reasoning):
+def generate_queries(df, model_name, tokenizer, prompt_id, reasoning, litellm_models):
     qrys = []
     
     for _,row in df.iterrows():
@@ -36,16 +43,34 @@ def generate_queries(df, model_name, tokenizer, prompt_id, reasoning):
     return qrys
 
 
-def generate_solution(prompt_id, model_name, reasoning, temperature, p, max_tokens, dfs):
+def generate_solution(prompt_id, model_name, reasoning, temperature, p, max_tokens, dfs, batch):
+    litellm_models = []
+    if os.environ.get("OPENAI_API_KEY") != None:
+        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+        litellm_models.extend([c.id for c in client.models.list()])
+    if os.environ.get("GEMINI_API_KEY") != None:
+        genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+        litellm_models.extend([m.name.replace("models/", "gemini/") for m in list(genai.list_models())])
+    if "openrouter" in model_name:
+        litellm_models.append(model_name)
+    
+    df_results = {}
     if model_name not in litellm_models:
         model, tokenizer, params = load_model(model_name, temperature, p, max_tokens)
+    else:
+        model, tokenizer, params = model_name, None, None
 
-    df_results = {}
     for k, df in tqdm(dfs.items(), total=len(dfs)):
-        prompts = generate_queries(df, model_name, tokenizer, prompt_id, reasoning)
+        prompts = generate_queries(df, model_name, tokenizer, prompt_id, reasoning, litellm_models=litellm_models)
         if model_name in litellm_models:
-            responses = batch_completion(model=model_name, messages=prompts, temperature=temperature, top_p=p, max_tokens=max_tokens)
-            outputs = [safe_parse_litellm(resp) for resp in responses]
+            if batch == True:
+                responses = batch_completion(model=model_name, messages=prompts, temperature=temperature, top_p=p, max_tokens=max_tokens)
+                outputs = [safe_parse_litellm(resp) for resp in responses]
+            else:
+                outputs = []
+                for qry in tqdm(prompts):
+                    response = completion(model=model_name, messages=qry, temperature=temperature, top_p=p, max_tokens=max_tokens)
+                    outputs.append(safe_parse_litellm(response))
         else:
             responses = model.generate(prompts, params)
             outputs = [safe_parse_vllm(output) for output in responses]
@@ -54,8 +79,11 @@ def generate_solution(prompt_id, model_name, reasoning, temperature, p, max_toke
             
         df_results[k] = df
 
-    del model
-    del tokenizer
-    torch.cuda.empty_cache()
+    if model:
+        del model
+    if tokenizer:
+        del tokenizer
+        torch.cuda.empty_cache()
 
     return df_results
+    

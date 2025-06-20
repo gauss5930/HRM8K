@@ -6,9 +6,13 @@ models:
 
 # Generation parameters
 temperature: 0.0
-top_p: 0.95             # This value will be ignored when `temperature` set to 0.0
+# This value will be ignored when `temperature` set to 0.0
+top_p: 0.95
 max_tokens: 8192
-reasoning: false        # The key to trigger the long thinking mode of language model (e.g., Qwen3 series)
+# The key to trigger the long thinking mode of language model (e.g., Qwen3 series)
+reasoning: false
+# Option for batch generation. (Only applied while evaluation litellm models.)
+batch: false
 
 # Evaluation dataset subsets & prompts
 subsets: [GSM8K, MATH, OMNI_MATH, MMMLU, KSM]

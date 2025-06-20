@@ -1,4 +1,6 @@
 import os
+from openai import OpenAI
+import google.generativeai as genai
 from score import scoring_func
 from generate import generate_solution
 from datasets import load_dataset
@@ -36,8 +38,9 @@ def main(
         reasoning: bool,
         score_type: List[str],
         temperature: float,
-        p: float,
-        max_tokens: int
+        top_p: float,
+        max_tokens: int,
+        batch: bool
 ):
     dfs = {subset: pd.DataFrame(load_dataset('HAERAE-HUB/HRM8K', subset)['test']) for subset in subsets}
 
@@ -50,7 +53,7 @@ def main(
             os.makedirs(f"results/{pi}/{model_path}", exist_ok=True)
             print(f"{model_name} - {prompt_id} Evaluation is starting..")
 
-            results = generate_solution(pi, model_name, reasoning, temperature, p, max_tokens, dfs)
+            results = generate_solution(pi, model_name, reasoning, temperature, top_p, max_tokens, dfs, batch)
             for k in results.keys():
                 results[k].to_csv(f"results/{pi}/{model_path}/{k}.csv", index=False)
                 
@@ -66,4 +69,4 @@ def main(
 
 if __name__ == "__main__":
     args = load_config("eval_config.yaml")
-    main(args["subsets"], args["models"], args["prompt_id"], args["reasoning"], args["score_type"], args["temperature"], args["top_p"], args["max_tokens"])
+    main(args["subsets"], args["models"], args["prompt_id"], args["reasoning"], args["score_type"], args["temperature"], args["top_p"], args["max_tokens"], args["batch"])
