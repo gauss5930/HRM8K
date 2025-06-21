@@ -8,3 +8,4 @@ sympy
 latex2sympy2_extended[antlr4_13_2]
 math-verify[antlr4_13_2]
 google-generativeai
+cohere

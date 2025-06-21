@@ -72,8 +72,9 @@ def main(
         for model_name in model_list:
             model_path = model_name.replace("/", "_")
             os.makedirs(f"check_results/{pi}/{model_path}", exist_ok=True)
-            subsets = [f"results/{pi}/{model_path}/{s}.csv" for s in subsets] if check_type == "config" else [os.path.join(f"results/{pi}/{model_path}", f) for f in os.listdir(f"results/{pi}/{model_path}") if ".csv" in f]
-            scores[pi][model_name] = result_check(pi, subsets)
+            check_subsets = [f"results/{pi}/{model_path}/{s}.csv" for s in subsets] if check_type == "config" else [os.path.join(f"results/{pi}/{model_path}", f) for f in os.listdir(f"results/{pi}/{model_path}") if ".csv" in f]
+            print(check_subsets)
+            scores[pi][model_name] = result_check(pi, check_subsets)
 
     with open(f"check_score.json", "w") as f:
         json.dump(scores, f, indent=4)
