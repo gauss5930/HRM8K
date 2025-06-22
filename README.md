@@ -43,10 +43,16 @@ Each subset consists of questions formulated in both Korean and English.
 - Python ≥ 3.8
 - vllm
 - pandas
+- openai
+- litellm
+- google-generativeai
 
 **Requirements**
 - `HF_TOKEN`
 - `OPENAI_API_KEY` (optional)
+- `GEMINI_API_KEY` (optional)
+- `COHERE_API_KEY` (optional)
+- `OPENROUTER_API_KEY` (optional)
 
 ### 1. Installation
 
@@ -75,9 +81,13 @@ models:
 
 # Generation parameters
 temperature: 0.0
-top_p: 0.95             # This value will be ignored when `temperature` set to 0.0
+# This value will be ignored when `temperature` set to 0.0
+top_p: 0.95
 max_tokens: 8192
+# The key to trigger the long thinking mode of language model (e.g., Qwen3 series)
 reasoning: false
+# Option for batch generation. (Only applied while evaluation litellm models.)
+batch: false
 
 # Evaluation dataset subsets & prompts
 subsets: [GSM8K, MATH, OMNI_MATH, MMMLU, KSM]

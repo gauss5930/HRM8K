@@ -95,9 +95,6 @@ def gemini_retry(model, qry, generation_config, max_retry=3):
 
 
 async def generate_single_vllm_request(model, prompt, params):
-    """
-    vLLM의 비동기 제너레이터를 소비하여 최종 결과만 반환하는 코루틴.
-    """
     request_id = random_uuid()
     results_generator = model.generate(prompt, params, request_id)
     
@@ -147,7 +144,7 @@ async def generate_solution(prompt_id, model_name, reasoning, temperature, p, ma
     else:
         model, tokenizer, params = model_name, None, None
 
-    for k, df in tqdm(dfs.items(), total=len(dfs)):
+    for k, df in tqdm(dfs.items(), total=len(dfs), desc="Processing subsets"):
         prompts = generate_queries(df, model_name, tokenizer, prompt_id, reasoning, litellm_models=litellm_models, gemini_models=gemini_models)
         outputs = []
         if model_name in litellm_models:
@@ -155,7 +152,7 @@ async def generate_solution(prompt_id, model_name, reasoning, temperature, p, ma
                 responses = batch_completion(model=model_name, messages=prompts, temperature=temperature, top_p=p, max_tokens=max_tokens)
                 outputs = [safe_parse_litellm(resp) for resp in responses]
             else:
-                for qry in tqdm(prompts):
+                for qry in tqdm(prompts, desc=f"Generating with {model_name}"):
                     response = litellm_retry(model_name, qry, temperature, p, max_tokens)
                     outputs.append(response)
         elif model_name in gemini_models:
@@ -165,12 +162,23 @@ async def generate_solution(prompt_id, model_name, reasoning, temperature, p, ma
                 temperature=temperature,
                 top_p=p
             )
-            for qry in tqdm(prompts):
+            for qry in tqdm(prompts, desc=f"Generating with {model_name}"):
                 response = gemini_retry(model, qry, generation_config=generation_config)
                 outputs.append(response)
         else:
             tasks = [generate_single_vllm_request(model, qry, params) for qry in prompts]
-            results = await asyncio.gather(*tasks)
+            
+            async def track_progress_wrapper(coro, pbar):
+                try:
+                    return await coro
+                finally:
+                    pbar.update(1)
+
+            results = []
+            with tqdm(total=len(tasks), desc=f"Generating with vLLM ({model_name})") as pbar:
+                wrapped_tasks = [track_progress_wrapper(task, pbar) for task in tasks]
+                results = await asyncio.gather(*wrapped_tasks)
+
             outputs = [safe_parse_vllm(result) for result in results]
 
         df["solution"] = outputs
@@ -184,4 +192,3 @@ async def generate_solution(prompt_id, model_name, reasoning, temperature, p, ma
     asyncio.sleep(5)
 
     return df_results
-    

@@ -4,6 +4,7 @@ from vllm import SamplingParams
 from vllm.engine.arg_utils import AsyncEngineArgs
 from vllm.engine.async_llm_engine import AsyncLLMEngine
 from transformers import AutoTokenizer
+import logging
 
 thinking_model_list = [
     "Qwen/Qwen3-0.6B",
@@ -28,6 +29,8 @@ async def load_model(model_name, temperature, p, max_tokens):
     except:
         engine_args = AsyncEngineArgs(model=model_name, tensor_parallel_size=torch.cuda.device_count(), trust_remote_code=True)
         model_engine = AsyncLLMEngine.from_engine_args(engine_args)
+
+    logging.getLogger("vllm").setLevel(logging.WARNING)
         
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
