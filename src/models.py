@@ -3,7 +3,7 @@ import os
 from vllm import SamplingParams
 from vllm.engine.arg_utils import AsyncEngineArgs
 from vllm.engine.async_llm_engine import AsyncLLMEngine
-from vllm.sampling_params import SamplingParams
+from transformers import AutoTokenizer
 
 thinking_model_list = [
     "Qwen/Qwen3-0.6B",
@@ -16,7 +16,7 @@ thinking_model_list = [
     "Qwen/Qwen3-235B-A22B"
 ]
     
-def load_model(model_name, temperature, p, max_tokens):
+async def load_model(model_name, temperature, p, max_tokens):
     if "exaone" in model_name.lower():
         os.environ["VLLM_USE_V1"] = "0"
     else:
@@ -29,7 +29,7 @@ def load_model(model_name, temperature, p, max_tokens):
         engine_args = AsyncEngineArgs(model=model_name, tensor_parallel_size=torch.cuda.device_count(), trust_remote_code=True)
         model_engine = AsyncLLMEngine.from_engine_args(engine_args)
         
-    tokenizer = model_engine.engine.get_tokenizer()
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
 
     if temperature == 0.0:
         params = SamplingParams(temperature=0.0, min_tokens=8, max_tokens=max_tokens)
@@ -37,17 +37,3 @@ def load_model(model_name, temperature, p, max_tokens):
         params = SamplingParams(temperature=temperature, top_p=p, min_tokens=8, max_tokens=max_tokens)
 
     return model_engine, tokenizer, params
-
-    # try:
-    #     llm = LLM(model_name, tensor_parallel_size=torch.cuda.device_count(), max_model_len=max_tokens+2048)
-    # except:
-    #     llm = LLM(model_name, tensor_parallel_size=torch.cuda.device_count())
-
-    # tokenizer = llm.get_tokenizer()
-
-    # if temperature == 0.0:
-    #     params = SamplingParams(temperature=0.0, min_tokens=8, max_tokens=max_tokens)
-    # else:
-    #     params = SamplingParams(temperature=temperature, top_p=p, min_tokens=8, max_tokens=max_tokens)
-        
-    # return llm, tokenizer, params

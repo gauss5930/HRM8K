@@ -9,6 +9,7 @@ from typing import List
 import pandas as pd
 import yaml
 import json
+import asyncio
 
 os.makedirs('results', exist_ok=True)
 os.makedirs('score_results', exist_ok=True)
@@ -53,7 +54,7 @@ def main(
             os.makedirs(f"results/{pi}/{model_path}", exist_ok=True)
             print(f"{model_name} - {prompt_id} Evaluation is starting..")
 
-            results = generate_solution(pi, model_name, reasoning, temperature, top_p, max_tokens, dfs, batch)
+            results = asyncio.run(generate_solution(pi, model_name, reasoning, temperature, top_p, max_tokens, dfs, batch))
             for k in results.keys():
                 results[k].to_csv(f"results/{pi}/{model_path}/{k}.csv", index=False)
                 

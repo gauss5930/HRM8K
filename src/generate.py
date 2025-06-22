@@ -11,6 +11,7 @@ import os
 import time
 import asyncio
 import gc
+from vllm.utils import random_uuid
 
 
 litellm.drop_params=True
@@ -93,6 +94,20 @@ def gemini_retry(model, qry, generation_config, max_retry=3):
     return None
 
 
+async def generate_single_vllm_request(model, prompt, params):
+    """
+    vLLM의 비동기 제너레이터를 소비하여 최종 결과만 반환하는 코루틴.
+    """
+    request_id = random_uuid()
+    results_generator = model.generate(prompt, params, request_id)
+    
+    final_output = None
+    async for request_output in results_generator:
+        final_output = request_output
+        
+    return final_output
+
+
 def generate_queries(df, model_name, tokenizer, prompt_id, reasoning, litellm_models, gemini_models):
     qrys = []
     
@@ -128,7 +143,7 @@ async def generate_solution(prompt_id, model_name, reasoning, temperature, p, ma
     
     df_results = {}
     if (model_name not in litellm_models) and (model_name not in gemini_models):
-        model, tokenizer, params = load_model(model_name, temperature, p, max_tokens)
+        model, tokenizer, params = await load_model(model_name, temperature, p, max_tokens)
     else:
         model, tokenizer, params = model_name, None, None
 
@@ -154,8 +169,9 @@ async def generate_solution(prompt_id, model_name, reasoning, temperature, p, ma
                 response = gemini_retry(model, qry, generation_config=generation_config)
                 outputs.append(response)
         else:
-            responses = model.generate(prompts, params)
-            outputs = [safe_parse_vllm(output) for output in responses]
+            tasks = [generate_single_vllm_request(model, qry, params) for qry in prompts]
+            results = await asyncio.gather(*tasks)
+            outputs = [safe_parse_vllm(result) for result in results]
 
         df["solution"] = outputs
             
