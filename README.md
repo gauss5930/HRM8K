@@ -67,6 +67,7 @@ pip install -r requirements.txt
 Customize the evaluation config with `eval_config.yaml`.
 - `models`: List of models to be evaluated. Currently, only `hf` and `openai` models are supported.
 - `reasoning`: For models capable of switching into Thinking mode, setting the parameter to True activates the Thinking mode. (e.g., Qwen3 series)
+- `batch`: Batch generation is enabled for API-supported models such as OpenAI, Gemini, and OpenRouter by setting the corresponding parameter to True.
 - `subsets`: List of HRM8K subsets for evaluation. Multiple selections are permitted from the following list: [GSM8K, MATH, OMNI_MATH, MMMLU, KSM]
 - `prompt_id`: Language prompt for evaluation. Multiple selections are permitted from the following list: [ko, en]
 - `score_type`: Scoring type for evaluation. Due to stability considerations, the `original` is recommended.

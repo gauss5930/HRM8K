@@ -5,6 +5,9 @@ export GEMINI_API_KEY="<GEMINI_API_KEY>"
 export COHERE_API_KEY="<COHERE_API_KEY>"
 export OPENROUTER_API_KEY="<OPENROUTER_API_KEY>"
 
+# Model download (optional)
+# python src/model_download.py
+
 # Evaluation code
 python src/run_eval.py
 
