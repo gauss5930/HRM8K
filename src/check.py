@@ -31,24 +31,28 @@ def result_check(
     sub_scores = {}
     for subs in tqdm(subsets):
         subset = subs.split("/")[-1].replace(".csv", "")
-        df_result = pd.read_csv(subs)
-        checks = []
-        if subset in ["GSM8K", "MATH", "OMNI_MATH"]:
-            score = sum([1 for _,row in df_result.iterrows() if any([answer_in_last_sentence(row.solution,row.answer), parse_boxed_value(row.solution,row.answer)])]) / len(df_result) * 100
-            for _,row in tqdm(df_result.iterrows(), total=len(df_result)):
-                checks.append(check_func(any([answer_in_last_sentence(row.solution, row.answer), parse_boxed_value(row.solution, row.answer)])))
-        elif subset == "MMMLU":
-            score = sum([1 for _,row in df_result.iterrows() if any([parse_mcqa_value(row.question,row.solution,row.answer)])]) / len(df_result) * 100
-            for _,row in tqdm(df_result.iterrows(), total=len(df_result)):
-                checks.append(check_func(parse_mcqa_value(row.question, row.solution, row.answer)))
-        elif subset == "KSM":
-            score = sum([1 for _,row in df_result.iterrows() if parse_ksm_value(row.original,row.solution,row.original_answer)]) if prompt_id == "en" else sum([1 for _,row in df_result.iterrows() if parse_ksm_value(row.question,row.solution,row.answer)])
-            score = score / len(df_result) * 100
-            for _,row in tqdm(df_result.iterrows(), total=len(df_result)):
-                checks.append(check_func(parse_ksm_value(row.question, row.solution, row.answer)) if prompt_id == "en" else check_func(parse_ksm_value(row.question, row.solution, row.answer)))
-        sub_scores[subset] = score
-        df_result["check"] = checks
-        df_result.to_csv(os.path.join("check_results", "/".join(subs.split("/")[1:-1]), f"{subset}_check.csv"), index=False)
+        if os.path.exists(subs):
+            df_result = pd.read_csv(subs)
+            checks = []
+            if subset in ["GSM8K", "MATH", "OMNI_MATH"]:
+                score = sum([1 for _,row in df_result.iterrows() if any([answer_in_last_sentence(row.solution,row.answer), parse_boxed_value(row.solution,row.answer)])]) / len(df_result) * 100
+                for _,row in tqdm(df_result.iterrows(), total=len(df_result)):
+                    checks.append(check_func(any([answer_in_last_sentence(row.solution, row.answer), parse_boxed_value(row.solution, row.answer)])))
+            elif subset == "MMMLU":
+                score = sum([1 for _,row in df_result.iterrows() if any([parse_mcqa_value(row.question,row.solution,row.answer)])]) / len(df_result) * 100
+                for _,row in tqdm(df_result.iterrows(), total=len(df_result)):
+                    checks.append(check_func(parse_mcqa_value(row.question, row.solution, row.answer)))
+            elif subset == "KSM":
+                score = sum([1 for _,row in df_result.iterrows() if parse_ksm_value(row.original,row.solution,row.original_answer)]) if prompt_id == "en" else sum([1 for _,row in df_result.iterrows() if parse_ksm_value(row.question,row.solution,row.answer)])
+                score = score / len(df_result) * 100
+                for _,row in tqdm(df_result.iterrows(), total=len(df_result)):
+                    checks.append(check_func(parse_ksm_value(row.question, row.solution, row.answer)) if prompt_id == "en" else check_func(parse_ksm_value(row.question, row.solution, row.answer)))
+            sub_scores[subset] = score
+            df_result["check"] = checks
+            df_result.to_csv(os.path.join("check_results", "/".join(subs.split("/")[1:-1]), f"{subset}_check.csv"), index=False)
+        else:
+            print(f"{subs} does not exist!")
+            sub_scores[subset] = None
 
     return sub_scores
 

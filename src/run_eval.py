@@ -55,18 +55,22 @@ def main(
             os.makedirs(f"results/{pi}/{model_path}", exist_ok=True)
             print(f"{model_name} - {prompt_id} Evaluation is starting..")
 
-            results = asyncio.run(generate_solution(pi, model_name, reasoning, temperature, top_p, max_tokens, dfs, batch))
-            for k in results.keys():
-                results[k].to_csv(f"results/{pi}/{model_path}/{k}.csv", index=False)
+            try:
+                results = asyncio.run(generate_solution(pi, model_name, reasoning, temperature, top_p, max_tokens, dfs, batch))
+                for k in results.keys():
+                    results[k].to_csv(f"results/{pi}/{model_path}/{k}.csv", index=False)
+                    
+                scores = scoring_func(score_type, pi, f"results/{pi}/{model_path}")
+                print("----------------------- Score Board -----------------------")
+                for key in scores.keys():
+                    print(f"{key}: {scores[key]}")
+                print("-----------------------------------------------------------")
                 
-            scores = scoring_func(score_type, pi, f"results/{pi}/{model_path}")
-            print("----------------------- Score Board -----------------------")
-            for key in scores.keys():
-                print(f"{key}: {scores[key]}")
-            print("-----------------------------------------------------------")
-            
-            with open(f"score_results/{pi}/{model_path}.json", "w") as f:
-                json.dump(scores, f, indent=4)
+                with open(f"score_results/{pi}/{model_path}.json", "w") as f:
+                    json.dump(scores, f, indent=4)
+            except Exception as e:
+                print(e)
+                continue
 
 
 if __name__ == "__main__":
