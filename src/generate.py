@@ -1,17 +1,13 @@
 from prompts import prompts
 from models import load_model
 from litellm import batch_completion, completion
-from tqdm.auto import tqdm
+from tqdm.auto import tqdm, trange
 import litellm
 from openai import OpenAI
 import google.generativeai as genai
 import cohere
-import torch
 import os
 import time
-import asyncio
-import gc
-from vllm.utils import random_uuid
 
 
 litellm.drop_params=True
@@ -94,17 +90,6 @@ def gemini_retry(model, qry, generation_config, max_retry=3):
     return None
 
 
-async def generate_single_vllm_request(model, prompt, params):
-    request_id = random_uuid()
-    results_generator = model.generate(prompt, params, request_id)
-    
-    final_output = None
-    async for request_output in results_generator:
-        final_output = request_output
-        
-    return final_output
-
-
 def generate_queries(df, model_name, tokenizer, prompt_id, reasoning, litellm_models, gemini_models):
     qrys = []
     
@@ -124,7 +109,7 @@ def generate_queries(df, model_name, tokenizer, prompt_id, reasoning, litellm_mo
     return qrys
 
 
-async def generate_solution(prompt_id, model_name, reasoning, temperature, p, max_tokens, dfs, batch):
+def generate_solution(prompt_id, model_name, reasoning, n, temperature, p, max_tokens, dfs, batch):
     litellm_models, gemini_models = [], []
     if os.environ.get("OPENAI_API_KEY") != None:
         client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
@@ -140,55 +125,39 @@ async def generate_solution(prompt_id, model_name, reasoning, temperature, p, ma
     
     df_results = {}
     if (model_name not in litellm_models) and (model_name not in gemini_models):
-        model, tokenizer, params = await load_model(model_name, temperature, p, max_tokens)
+        model, tokenizer, params = load_model(model_name, temperature, p, max_tokens)
     else:
         model, tokenizer, params = model_name, None, None
 
     for k, df in tqdm(dfs.items(), total=len(dfs), desc="Processing subsets"):
         prompts = generate_queries(df, model_name, tokenizer, prompt_id, reasoning, litellm_models=litellm_models, gemini_models=gemini_models)
-        outputs = []
-        if model_name in litellm_models:
-            if batch == True:
-                responses = batch_completion(model=model_name, messages=prompts, temperature=temperature, top_p=p, max_tokens=max_tokens)
-                outputs = [safe_parse_litellm(resp) for resp in responses]
-            else:
+        for iteration in trange(n):
+            print(f"{model} - {k} Generation #{iteration+1} Start!")
+            outputs = []
+            if model_name in litellm_models:
+                if batch == True:
+                    responses = batch_completion(model=model_name, messages=prompts, temperature=temperature, top_p=p, max_tokens=max_tokens)
+                    outputs = [safe_parse_litellm(resp) for resp in responses]
+                else:
+                    for qry in tqdm(prompts, desc=f"Generating with {model_name}"):
+                        response = litellm_retry(model_name, qry, temperature, p, max_tokens)
+                        outputs.append(response)
+            elif model_name in gemini_models:
+                model = genai.GenerativeModel(model_name)
+                generation_config = genai.types.GenerationConfig(
+                    max_output_tokens=max_tokens,
+                    temperature=temperature,
+                    top_p=p
+                )
                 for qry in tqdm(prompts, desc=f"Generating with {model_name}"):
-                    response = litellm_retry(model_name, qry, temperature, p, max_tokens)
+                    response = gemini_retry(model, qry, generation_config=generation_config)
                     outputs.append(response)
-        elif model_name in gemini_models:
-            model = genai.GenerativeModel(model_name)
-            generation_config = genai.types.GenerationConfig(
-                max_output_tokens=max_tokens,
-                temperature=temperature,
-                top_p=p
-            )
-            for qry in tqdm(prompts, desc=f"Generating with {model_name}"):
-                response = gemini_retry(model, qry, generation_config=generation_config)
-                outputs.append(response)
-        else:
-            tasks = [generate_single_vllm_request(model, qry, params) for qry in prompts]
+            else:
+                responses = model.generate(prompts, params)
+                outputs = [safe_parse_vllm(resp) for resp in responses]
             
-            async def track_progress_wrapper(coro, pbar):
-                try:
-                    return await coro
-                finally:
-                    pbar.update(1)
-
-            results = []
-            with tqdm(total=len(tasks), desc=f"Generating with vLLM ({model_name})") as pbar:
-                wrapped_tasks = [track_progress_wrapper(task, pbar) for task in tasks]
-                results = await asyncio.gather(*wrapped_tasks)
-
-            outputs = [safe_parse_vllm(result) for result in results]
-
-        df["solution"] = outputs
-            
-        df_results[k] = df
-
-    del model
-    del tokenizer
-    gc.collect()
-    torch.cuda.empty_cache()
-    asyncio.sleep(5)
+            df[f"solution_{iteration+1}"] = outputs
+                
+            df_results[k] = df
 
     return df_results

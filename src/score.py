@@ -6,6 +6,7 @@ from collections import Counter
 from latex2sympy2_extended import latex2sympy
 from sympy import latex, simplify
 import signal
+import numpy as np
 
 def _timeout_handler(signum, frame):
     raise TimeoutError
@@ -118,7 +119,7 @@ def parse_ksm_value(question, text, answer):
             return any([str(answer) == boxed, safe_latex_equal(boxed, str(answer))])
 
 
-def scoring_func(score_type, prompt_id, output_path):
+def scoring_func(score_type, prompt_id, n, output_path):
     file_list = [os.path.join(output_path, f) for f in os.listdir(output_path) if ".csv" in f]
     scores = {}
 
@@ -128,22 +129,33 @@ def scoring_func(score_type, prompt_id, output_path):
             k = file.split("/")[-1].replace(".csv", "")
             df = pd.read_csv(file)
             
-            if st == "original":
-                if k in ["GSM8K", "MATH", "OMNI_MATH"]:
-                    score = sum([1 for _,row in df.iterrows() if any([answer_in_last_sentence(row.solution,row.answer),parse_boxed_value(row.solution,row.answer)])])
-                elif k == "MMMLU":
-                    score = sum([1 for _,row in df.iterrows() if any([parse_mcqa_value(row.question,row.solution,row.answer)])])
-                elif k == "KSM":
-                    score = sum([1 for _,row in df.iterrows() if parse_ksm_value(row.original,row.solution,row.original_answer)]) if prompt_id == "en" else sum([1 for _,row in df.iterrows() if parse_ksm_value(row.question,row.solution,row.answer)])
+            score_dict = {}
+            for iteration in range(1, n+1):
+                if st == "original":
+                    if k in ["GSM8K", "MATH", "OMNI_MATH"]:
+                        score = sum([1 for _,row in df.iterrows() if any([answer_in_last_sentence(row[f"solution_{iteration}"],row.answer),parse_boxed_value(row[f"solution_{iteration}"],row.answer)])])
+                    elif k == "MMMLU":
+                        score = sum([1 for _,row in df.iterrows() if any([parse_mcqa_value(row.question,row[f"solution_{iteration}"],row.answer)])])
+                    elif k == "KSM":
+                        score = sum([1 for _,row in df.iterrows() if parse_ksm_value(row.original,row[f"solution_{iteration}"],row.original_answer)]) if prompt_id == "en" else sum([1 for _,row in df.iterrows() if parse_ksm_value(row.question,row[f"solution_{iteration}"],row.answer)])
 
-            elif st == "math_verify":
-                if k in ["GSM8K", "MATH", "OMNI_MATH"]:
-                    score = sum([1 for _,row in df.iterrows() if verify(parse(str(row.answer)), parse(row.solution))])
-                elif k == "MMMLU":
-                    score = sum([1 for _,row in df.iterrows() if any([parse_mcqa_value(row.question,row.solution,row.answer)])])
-                elif k == "KSM":
-                    score = sum([1 for _,row in df.iterrows() if verify(parse(str(row.original_answer)), parse(row.solution))]) if prompt_id == "en" else sum([1 for _,row in df.iterrows() if verify(parse(str(row.answer)), parse(row.solution))])
+                elif st == "math_verify":
+                    if k in ["GSM8K", "MATH", "OMNI_MATH"]:
+                        score = sum([1 for _,row in df.iterrows() if verify(parse(str(row.answer)), parse(row[f"solution_{iteration}"]))])
+                    elif k == "MMMLU":
+                        score = sum([1 for _,row in df.iterrows() if any([parse_mcqa_value(row.question,row[f"solution_{iteration}"],row.answer)])])
+                    elif k == "KSM":
+                        score = sum([1 for _,row in df.iterrows() if verify(parse(str(row.original_answer)), parse(row[f"solution_{iteration}"]))]) if prompt_id == "en" else sum([1 for _,row in df.iterrows() if verify(parse(str(row.answer)), parse(row[f"solution_{iteration}"]))])
 
-            scores[st][k] = score / len(df) * 100
+                if n == 1:
+                    continue
+                else:
+                    score_dict[k][f"iteration_{iteration}"] = score / len(df) * 100
+            
+            if n == 1:
+                scores[st][k] = score / len(df) * 100
+            else:
+                score_dict["average"] = np.mean([score_dict[f"iteration_{ite}"] for ite in range(1, n+1)])
+                scores[st][k] = score_dict
             
     return scores

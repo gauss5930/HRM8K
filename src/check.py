@@ -6,6 +6,16 @@ import yaml
 from typing import List
 import argparse
 from tqdm.auto import tqdm
+import numpy as np
+
+
+def args_parse():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--check_type", type=str, required=True)
+    parser.add_argument("--models", nargs="+", default=None)
+    parser.add_argument("--subsets", nargs="+", default=None)
+    parser.add_argument("--prompt_id", nargs="+", default=None)
+    return parser.parse_args()
 
 
 def load_config(
@@ -33,22 +43,28 @@ def result_check(
         subset = subs.split("/")[-1].replace(".csv", "")
         if os.path.exists(subs):
             df_result = pd.read_csv(subs)
-            checks = []
-            if subset in ["GSM8K", "MATH", "OMNI_MATH"]:
-                score = sum([1 for _,row in df_result.iterrows() if any([answer_in_last_sentence(row.solution,row.answer), parse_boxed_value(row.solution,row.answer)])]) / len(df_result) * 100
-                for _,row in tqdm(df_result.iterrows(), total=len(df_result)):
-                    checks.append(check_func(any([answer_in_last_sentence(row.solution, row.answer), parse_boxed_value(row.solution, row.answer)])))
-            elif subset == "MMMLU":
-                score = sum([1 for _,row in df_result.iterrows() if any([parse_mcqa_value(row.question,row.solution,row.answer)])]) / len(df_result) * 100
-                for _,row in tqdm(df_result.iterrows(), total=len(df_result)):
-                    checks.append(check_func(parse_mcqa_value(row.question, row.solution, row.answer)))
-            elif subset == "KSM":
-                score = sum([1 for _,row in df_result.iterrows() if parse_ksm_value(row.original,row.solution,row.original_answer)]) if prompt_id == "en" else sum([1 for _,row in df_result.iterrows() if parse_ksm_value(row.question,row.solution,row.answer)])
-                score = score / len(df_result) * 100
-                for _,row in tqdm(df_result.iterrows(), total=len(df_result)):
-                    checks.append(check_func(parse_ksm_value(row.question, row.solution, row.answer)) if prompt_id == "en" else check_func(parse_ksm_value(row.question, row.solution, row.answer)))
-            sub_scores[subset] = score
-            df_result["check"] = checks
+            iterations = len([l for l in list(df_result.keys()) if "solution" in l])
+
+            score_dict = {}
+            for it in range(1, iterations+1):
+                checks = []
+                if subset in ["GSM8K", "MATH", "OMNI_MATH"]:
+                    score = sum([1 for _,row in df_result.iterrows() if any([answer_in_last_sentence(row[f"solution_{it}"],row.answer), parse_boxed_value(row[f"solution_{it}"],row.answer)])]) / len(df_result) * 100
+                    for _,row in tqdm(df_result.iterrows(), total=len(df_result)):
+                        checks.append(check_func(any([answer_in_last_sentence(row[f"solution_{it}"], row.answer), parse_boxed_value(row[f"solution_{it}"], row.answer)])))
+                elif subset == "MMMLU":
+                    score = sum([1 for _,row in df_result.iterrows() if any([parse_mcqa_value(row.question,row[f"solution_{it}"],row.answer)])]) / len(df_result) * 100
+                    for _,row in tqdm(df_result.iterrows(), total=len(df_result)):
+                        checks.append(check_func(parse_mcqa_value(row.question, row[f"solution_{it}"], row.answer)))
+                elif subset == "KSM":
+                    score = sum([1 for _,row in df_result.iterrows() if parse_ksm_value(row.original,row[f"solution_{it}"],row.original_answer)]) if prompt_id == "en" else sum([1 for _,row in df_result.iterrows() if parse_ksm_value(row.question,row[f"solution_{it}"],row.answer)])
+                    score = score / len(df_result) * 100
+                    for _,row in tqdm(df_result.iterrows(), total=len(df_result)):
+                        checks.append(check_func(parse_ksm_value(row.question, row[f"solution_{it}"], row.answer)) if prompt_id == "en" else check_func(parse_ksm_value(row.question, row[f"solution_{it}"], row.answer)))
+                score_dict[f"iteration_{it}"] = score
+                df_result[f"check_{it}"] = checks
+            score_dict["average"] = np.mean([score_dict[f"iteration_{it}"] for it in range(1, iterations+1)])
+            sub_scores[subset] = score_dict
             df_result.to_csv(os.path.join("check_results", "/".join(subs.split("/")[1:-1]), f"{subset}_check.csv"), index=False)
         else:
             print(f"{subs} does not exist!")
@@ -59,8 +75,8 @@ def result_check(
 
 def main(
         check_type: str,
-        subsets: List[str],
         model_list: List[str],
+        subsets: List[str],
         prompt_id: List[str]
 ):
     os.makedirs("check_results", exist_ok=True)
@@ -85,8 +101,5 @@ def main(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--check_type", type=str, default="config", help="The type of result check. [`all`, `config`]")
-    parse_args = parser.parse_args()
-    yaml_args = load_config("eval_config.yaml")
-    main(parse_args.check_type, yaml_args["subsets"], yaml_args["models"], yaml_args["prompt_id"])
+    args = args_parse()
+    main(args.check_type, args.models, args.subsets, args.prompt_id)
