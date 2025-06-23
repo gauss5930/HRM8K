@@ -1,5 +1,6 @@
 from huggingface_hub import snapshot_download
-import yaml
+import argparse
+
 
 def load_config(
         path: str
@@ -9,11 +10,13 @@ def load_config(
 
 
 if __name__ == "__main__":
-    args = load_config("eval_config.yaml")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--models", nargs="+")
+    args = parser.parse_args()
     
     success_list, fail_dict = [], {}
 
-    for model_name in args["models"]:
+    for model_name in args.models:
         try:
             snapshot_download(
                 repo_id=model_name,
@@ -24,7 +27,7 @@ if __name__ == "__main__":
             fail_dict[model_name] = e
 
     print("#################### Model Download Result ####################")
-    print(f"- Count: {len(args['models'])}\n- Succeed: {len(success_list)}\n- Failed: {len(fail_dict)}\n")
+    print(f"- Count: {len(args.models)}\n- Succeed: {len(success_list)}\n- Failed: {len(fail_dict)}\n")
     print("**Succeed Models**")
     for s in success_list:
         print(f"- {s}")

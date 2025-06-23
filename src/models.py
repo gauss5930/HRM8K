@@ -13,7 +13,7 @@ thinking_model_list = [
     "Qwen/Qwen3-235B-A22B"
 ]
     
-async def load_model(model_name, temperature, p, max_tokens):
+def load_model(model_name, temperature, p, max_tokens):
     if "exaone" in model_name.lower():
         os.environ["VLLM_USE_V1"] = "0"
     else:

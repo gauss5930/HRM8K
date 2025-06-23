@@ -9,4 +9,4 @@ models=(
 )
 
 # Model Download
-python src/model_download.py --models $models
+python src/model_download.py --models "${models[@]}"
