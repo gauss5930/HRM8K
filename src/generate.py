@@ -4,6 +4,7 @@ from litellm import batch_completion, completion
 from tqdm.auto import tqdm, trange
 import litellm
 from openai import OpenAI
+import multiprocessing
 import google.generativeai as genai
 import cohere
 import os
@@ -32,34 +33,24 @@ def safe_parse_gemini(text):
         return text.text
     except:
         return None
+    
 
+def process_request(task_args):
+    try:
+        response = completion(**task_args)
+        return response
+    except Exception as e:
+        return {"error": str(e), "original_request": task_args}
+    
 
-def litellm_retry(model, messages, temperature, top_p, max_tokens, max_retry=3):
-    retry_count = 0
-
-    while retry_count < max_retry:
-        retry_count += 1
-        try:
-            result = completion(model=model, messages=messages, temperature=temperature, top_p=top_p, max_tokens=max_tokens)
-            text = safe_parse_litellm(result)
-            if text is None:
-                raise ValueError("Empty / malformed model output")
-
-            retry_count = 0
-            return text
-
-        except Exception as e:
-            retry_count += 1
-            wait_seconds = 5 * 60 if retry_count < 3 else 60 * 60
-            print(
-                f"[WARN] Generation failed ({e}). "
-                f"{retry_count} consecutive error(s). "
-                f"Sleeping {wait_seconds // 60} min and retrying..."
-            )
-            time.sleep(wait_seconds)
-
-    print(f"Exceeded {max_retry} retries for a single prompt; aborting.")
-    return None
+def multi_completion(tasks):
+    num_processes = min(len(tasks), os.cpu_count(), 16)
+    results = []
+    with multiprocessing.Pool(processes=num_processes) as pool:
+        pbar = tqdm(pool.imap_unordered(process_request, tasks), total=len(tasks))
+        for result in pbar:
+            results.append(result)
+    return results
 
 
 def gemini_retry(model, qry, generation_config, max_retry=3):
@@ -90,15 +81,23 @@ def gemini_retry(model, qry, generation_config, max_retry=3):
     return None
 
 
-def generate_queries(df, model_name, tokenizer, prompt_id, reasoning, litellm_models, gemini_models):
+def generate_queries(df, model_name, tokenizer, prompt_id, reasoning, temperature, top_p, max_tokens, litellm_models, gemini_models):
     qrys = []
+    common_headers = {"HTTP-Referer": "https://github.com/BerriAI/litellm"}
     
     for _,row in df.iterrows():
         question = row.original if prompt_id == "en" else row.question
         msg = " ".join([question, prompts[prompt_id]]).strip()
 
         if model_name in litellm_models:
-            qry = [{"role": "user", "content": msg}]
+            qry = [{
+                "model": model_name,
+                "messages": {"role": "user", "content": msg},
+                "temperature": temperature,
+                "top_p": top_p,
+                "max_tokens": max_tokens,
+                "custom_header": common_headers
+            }]
         elif model_name in gemini_models:
             qry = msg
         else:
@@ -130,7 +129,7 @@ def generate_solution(prompt_id, model_name, reasoning, n, temperature, p, max_t
         model, tokenizer, params = model_name, None, None
 
     for k, df in tqdm(dfs.items(), total=len(dfs), desc="Processing subsets"):
-        prompts = generate_queries(df, model_name, tokenizer, prompt_id, reasoning, litellm_models=litellm_models, gemini_models=gemini_models)
+        prompts = generate_queries(df, model_name, tokenizer, prompt_id, reasoning, temperature, p, max_tokens, litellm_models=litellm_models, gemini_models=gemini_models)
         for iteration in trange(n):
             print(f"{model} - {k} Generation #{iteration+1} Start!")
             outputs = []
@@ -139,9 +138,8 @@ def generate_solution(prompt_id, model_name, reasoning, n, temperature, p, max_t
                     responses = batch_completion(model=model_name, messages=prompts, temperature=temperature, top_p=p, max_tokens=max_tokens)
                     outputs = [safe_parse_litellm(resp) for resp in responses]
                 else:
-                    for qry in tqdm(prompts, desc=f"Generating with {model_name}"):
-                        response = litellm_retry(model_name, qry, temperature, p, max_tokens)
-                        outputs.append(response)
+                    responses = multi_completion(prompts)
+                    outputs = [safe_parse_litellm(resp) for resp in responses]
             elif model_name in gemini_models:
                 model = genai.GenerativeModel(model_name)
                 generation_config = genai.types.GenerationConfig(
