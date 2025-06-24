@@ -40,14 +40,15 @@ def process_request(task_args):
         response = completion(**task_args)
         return response
     except Exception as e:
-        return {"error": str(e), "original_request": task_args}
+        print(e)
+        return None
     
 
 def multi_completion(tasks):
     num_processes = min(len(tasks), os.cpu_count(), 16)
     results = []
     with multiprocessing.Pool(processes=num_processes) as pool:
-        pbar = tqdm(pool.imap_unordered(process_request, tasks), total=len(tasks))
+        pbar = tqdm(pool.imap(process_request, tasks), total=len(tasks))
         for result in pbar:
             results.append(result)
     return results
@@ -90,14 +91,14 @@ def generate_queries(df, model_name, tokenizer, prompt_id, reasoning, temperatur
         msg = " ".join([question, prompts[prompt_id]]).strip()
 
         if model_name in litellm_models:
-            qry = [{
+            qry = {
                 "model": model_name,
-                "messages": {"role": "user", "content": msg},
+                "messages": [{"role": "user", "content": msg}],
                 "temperature": temperature,
                 "top_p": top_p,
                 "max_tokens": max_tokens,
                 "custom_header": common_headers
-            }]
+            }
         elif model_name in gemini_models:
             qry = msg
         else:
