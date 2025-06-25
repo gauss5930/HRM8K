@@ -33,16 +33,28 @@ def safe_parse_gemini(text):
         return text.text
     except:
         return None
-    
 
-def process_request(task_args):
-    try:
-        response = completion(**task_args)
-        return response
-    except Exception as e:
-        print(e)
-        return None
+def process_request(task_args, max_retries=3):
+    retry_count = 0
+    while retry_count < max_retries:
+        try:
+            response = completion(**task_args)
+            return response
+        except Exception as e:
+            retry_count += 1
+            if retry_count >= max_retries:
+                print(f"Rate limit error: Max retries ({max_retries}) reached. Aborting for this request. Error: {e}")
+                return None
+            
+            # 10분(600초) 대기
+            wait_time = 600
+            print(f"Rate limit error encountered. Waiting for {wait_time/60:.0f} minutes before retrying... (Attempt {retry_count}/{max_retries})")
+            print(f"Error details: {e}")
+            time.sleep(wait_time)
     
+    print(f"Failed to get a response after {max_retries} attempts.")
+    return None
+
 
 def multi_completion(tasks):
     num_processes = min(len(tasks), os.cpu_count(), 16)
@@ -97,7 +109,9 @@ def generate_queries(df, model_name, tokenizer, prompt_id, reasoning, temperatur
                 "temperature": temperature,
                 "top_p": top_p,
                 "max_tokens": max_tokens,
-                "custom_header": common_headers
+                "custom_header": common_headers,
+                "num_retries": 3,
+                "timeout": 600
             }
         elif model_name in gemini_models:
             qry = msg
@@ -130,16 +144,16 @@ def generate_solution(prompt_id, model_name, reasoning, n, temperature, p, max_t
         model, tokenizer, params = model_name, None, None
 
     for k, df in tqdm(dfs.items(), total=len(dfs), desc="Processing subsets"):
-        prompts = generate_queries(df, model_name, tokenizer, prompt_id, reasoning, temperature, p, max_tokens, litellm_models=litellm_models, gemini_models=gemini_models)
+        prompts_args = generate_queries(df, model_name, tokenizer, prompt_id, reasoning, temperature, p, max_tokens, litellm_models=litellm_models, gemini_models=gemini_models)
         for iteration in trange(n):
             print(f"{model} - {k} Generation #{iteration+1} Start!")
             outputs = []
             if model_name in litellm_models:
                 if batch == True:
-                    responses = batch_completion(model=model_name, messages=prompts, temperature=temperature, top_p=p, max_tokens=max_tokens)
+                    responses = batch_completion(model=model_name, messages=prompts_args, temperature=temperature, top_p=p, max_tokens=max_tokens)
                     outputs = [safe_parse_litellm(resp) for resp in responses]
                 else:
-                    responses = multi_completion(prompts)
+                    responses = multi_completion(prompts_args)
                     outputs = [safe_parse_litellm(resp) for resp in responses]
             elif model_name in gemini_models:
                 model = genai.GenerativeModel(model_name)
@@ -148,11 +162,11 @@ def generate_solution(prompt_id, model_name, reasoning, n, temperature, p, max_t
                     temperature=temperature,
                     top_p=p
                 )
-                for qry in tqdm(prompts, desc=f"Generating with {model_name}"):
+                for qry in tqdm(prompts_args, desc=f"Generating with {model_name}"):
                     response = gemini_retry(model, qry, generation_config=generation_config)
                     outputs.append(response)
             else:
-                responses = model.generate(prompts, params)
+                responses = model.generate(prompts_args, params)
                 outputs = [safe_parse_vllm(resp) for resp in responses]
             
             df[f"solution_{iteration+1}"] = outputs
