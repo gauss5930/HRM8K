@@ -1,8 +1,8 @@
 import os
+from prompts import prompts
 from score import scoring_func
 from generate import generate_solution
 from datasets import load_dataset
-from models import thinking_model_list
 from typing import List
 import pandas as pd
 import argparse
@@ -43,16 +43,6 @@ def load_config(
 ):
     with open(path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
-    
-
-def thinking_model_check(model_name, pi, reasoning, thinking_model_list=thinking_model_list):
-    for model in thinking_model_list:
-        if model_name in model:
-            if reasoning == True:
-                return pi + "_reasoning"
-            else:
-                return pi
-    return pi
 
 
 def main(
@@ -86,7 +76,9 @@ def main(
     dfs = {subset: pd.DataFrame(load_dataset('HAERAE-HUB/HRM8K', subset)['test']) for subset in subsets}
 
     for p in prompt_id:
-        pi = thinking_model_check(model_name, p, reasoning)
+        if p not in prompts.keys():
+            continue
+        pi = p
         model_path = model_name.replace('/', '_')
         os.makedirs(f"results/{pi}", exist_ok=True)
         os.makedirs(f"score_results/{pi}", exist_ok=True)

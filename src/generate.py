@@ -1,4 +1,4 @@
-from prompts import prompts
+from prompts import prompts, magistral_system
 from models import load_model
 from litellm import batch_completion, completion
 from tqdm.auto import tqdm, trange
@@ -101,11 +101,12 @@ def generate_queries(df, model_name, tokenizer, prompt_id, reasoning, temperatur
     for _,row in df.iterrows():
         question = row.original if prompt_id == "en" else row.question
         msg = " ".join([question, prompts[prompt_id]]).strip()
+        msg_prompt = [{"role": "system", "content": magistral_system}, {"role": "user", "content": msg}] if "magistral" in model_name.lower() else [{"role": "user", "content": msg}]
 
         if model_name in litellm_models:
             qry = {
                 "model": model_name,
-                "messages": [{"role": "user", "content": msg}],
+                "messages": msg_prompt,
                 "temperature": temperature,
                 "top_p": top_p,
                 "max_tokens": max_tokens,
@@ -116,7 +117,7 @@ def generate_queries(df, model_name, tokenizer, prompt_id, reasoning, temperatur
         elif model_name in gemini_models:
             qry = msg
         else:
-            qry = tokenizer.apply_chat_template([{"role": "user", "content": msg}], tokenize=False, add_generation_prompt=True, enable_thinking=reasoning)
+            qry = tokenizer.apply_chat_template(msg_prompt, tokenize=False, add_generation_prompt=True, enable_thinking=reasoning)
 
         qrys.append(qry)
 
