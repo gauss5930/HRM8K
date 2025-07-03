@@ -1,0 +1,1 @@
+python src/check.py --check_type "all"
